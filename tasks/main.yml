@@ -23,7 +23,6 @@
     size_id: '{{ ram }}'
     region_id: nyc3
     image_id: centos-7-x64
-    ssh_key_ids: "19122282"
     wait_timeout: "700"
     unique_name: yes
   with_items: '{{ droplet_worker }}'
@@ -38,7 +37,6 @@
     size_id: '{{ ram_master }}'
     region_id: nyc3
     image_id: centos-7-x64
-    ssh_key_ids: 19122282
     wait_timeout: 700
     unique_name: yes
   register: my_droplet_master
