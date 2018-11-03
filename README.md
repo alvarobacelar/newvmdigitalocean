@@ -17,7 +17,7 @@ Example Playbook
 ----------------
 
 Exemplo de playbook de execução dessa role:
-i
+```yml
     - hosts: localhost
       connection: local
       vars:
@@ -34,5 +34,5 @@ i
       	gather_facts: false
       roles: 
     	- newvmdigitalocean
-      
+```   
 
