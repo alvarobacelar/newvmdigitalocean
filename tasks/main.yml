@@ -1,0 +1,109 @@
+---
+# tasks file for create vm digitalocean
+- name: Instalando o pip
+  yum:
+    name: python-pip
+    state: latest
+
+- name: Garantindo que as dependencias estejam instaladas
+  pip:
+    name: dopy
+    state: latest
+
+- name: Pegando a api digitalocean no arquivo
+  shell: cat /home/.apidigitalocean
+  register: digitalkey
+
+- name: Criar ou Remover as maquinas workers
+  digital_ocean:
+    state: '{{ estado }}'
+    command: droplet
+    name: '{{ item }}'
+    api_token: '{{ digitalkey.stdout }}'
+    size_id: '{{ ram }}'
+    region_id: nyc3
+    image_id: centos-7-x64
+    ssh_key_ids: "19122282"
+    wait_timeout: "700"
+    unique_name: yes
+  with_items: '{{ droplet_worker }}'
+  register: my_droplet
+
+- name: Criar ou remover a maquina master
+  digital_ocean:
+    state: '{{ estado }}'
+    command: droplet
+    name: '{{ droplet_name_master }}'
+    api_token: '{{ digitalkey.stdout }}'
+    size_id: '{{ ram_master }}'
+    region_id: nyc3
+    image_id: centos-7-x64
+    ssh_key_ids: 19122282
+    wait_timeout: 700
+    unique_name: yes
+  register: my_droplet_master
+  when: master is defined
+
+- name: Adicionando a tag nas maquinas workers
+  digital_ocean_tag:
+    name: "{{ tag_name }}"
+    resource_id: "{{ item.droplet.id }}"
+    state: present
+    api_token: '{{ digitalkey.stdout }}'
+  with_items: '{{ my_droplet.results }}'
+  when: estado == "present"
+
+- name: Adicionando a tag na maquina master
+  digital_ocean_tag:
+    name: '{{ tag_name }}'
+    resource_id: '{{ my_droplet_master.droplet.id }}'
+    state: present
+    api_token: '{{ digitalkey.stdout }}'
+  when: master is defined and estado == "present"
+
+- name: Adicionando os workers no inventario do ansible
+  lineinfile: 
+    path: /etc/ansible/hosts
+    state: present
+    insertbefore: "[workers]"
+    line: |
+      {{ item.droplet.name }} ansible_ssh_host={{ item.droplet.ip_address }}
+  with_items: '{{ my_droplet.results }}'
+  when: estado == "present"
+  ignore_errors: yes
+
+- name: Removendo os workers no inventario do ansible
+  lineinfile:
+    path: /etc/ansible/hosts
+    state: absent
+    regexp: '^{{ item }}'
+  with_items: '{{ droplet_worker }}'
+  when: estado != "present"
+  ignore_errors: yes
+
+- name: Adicionando o master no inventario do ansible
+  lineinfile: 
+    path: /etc/ansible/hosts    
+    state: present
+    insertafter: "[master]"
+    line: |      
+      {{ my_droplet_master.droplet.name }} ansible_ssh_host={{ my_droplet_master.droplet.ip_address }}    
+  when: estado == "present"
+  ignore_errors: yes
+
+- name: Removendo o master no inventario do ansible
+  lineinfile:
+    path: /etc/ansible/hosts
+    state: absent
+    regexp: '^{{ droplet_name_master }}'
+  when: estado != "present" and master is defined
+  ignore_errors: yes
+
+- debug:
+    msg: "IP do {{ item.droplet.name }} é: {{ item.droplet.ip_address }}"
+  with_items: '{{ my_droplet.results }}'
+  when: estado == "present"
+
+- debug:
+    msg: "IP da maquina master é: {{ my_droplet_master.droplet.ip_address }}"
+  when: master is defined and estado == "present"
